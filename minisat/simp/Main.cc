@@ -25,7 +25,9 @@ OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWA
 #include "minisat/utils/ParseUtils.h"
 #include "minisat/utils/Options.h"
 #include "minisat/core/Dimacs.h"
+#include "minisat/core/Distributer.h"
 #include "minisat/simp/SimpSolver.h"
+
 
 using namespace Minisat;
 
@@ -69,12 +71,14 @@ int main(int argc, char** argv)
 
         parseOptions(argc, argv, true);
         
+        Distributer d;
         SimpSolver  S;
         double      initial_time = cpuTime();
 
         if (!pre) S.eliminate(true);
 
         S.verbosity = verb;
+        S.distributer = &d;
         
         solver = &S;
         // Use signal handlers that forcibly quit until the solver will be able to respond to

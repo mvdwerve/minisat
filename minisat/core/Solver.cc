@@ -84,6 +84,9 @@ Solver::Solver() :
   , solves(0), starts(0), decisions(0), rnd_decisions(0), propagations(0), conflicts(0)
   , dec_vars(0), num_clauses(0), num_learnts(0), clauses_literals(0), learnts_literals(0), max_literals(0), tot_literals(0)
 
+    // Distributer
+  , distributer        (nullptr)
+
   , watches            (WatcherDeleted(ca))
   , order_heap         (VarOrderLt(activity))
   , ok                 (true)
@@ -188,6 +191,8 @@ void Solver::attachClause(CRef cr){
     watches[~c[1]].push(Watcher(cr, c[0]));
     if (c.learnt()) num_learnts++, learnts_literals += c.size();
     else            num_clauses++, clauses_literals += c.size();
+
+    // TODO: have the feeling this is our golden spot
 }
 
 
@@ -722,6 +727,7 @@ lbool Solver::search(int nof_conflicts)
                 uncheckedEnqueue(learnt_clause[0]);
             }else{
                 CRef cr = ca.alloc(learnt_clause, true);
+                // TODO: this is also a golden spot with the learnts, but actually calls our other golden spot
                 learnts.push(cr);
                 attachClause(cr);
                 claBumpActivity(ca[cr]);
