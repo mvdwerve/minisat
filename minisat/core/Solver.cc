@@ -729,14 +729,35 @@ lbool Solver::search(int nof_conflicts)
             // we are going to broadcast the learnt clause
             distributer->broadcast(learnt_clause);
 
-            if (learnt_clause.size() == 1) {
-                uncheckedEnqueue(learnt_clause[0]);
-            } else {
-                CRef cr = ca.alloc(learnt_clause, true);
+            // the learnt clause frm the distributer
+            std::shared_ptr<LitClause> learnt;
+
+            // and at this point we cheat and are going to inject all the learnt clauses from
+            // _all_ others!
+            while (learnt) {
+                // dereference it because the code uses dereferenced types
+                vec<Lit> &lcl = *learnt;
+
+                // retain the learnt before overwrite
+                auto old = learnt;
+
+                // get the next in advance
+                learnt = distributer->receive();
+
+                // this is the code from minisat, adapted
+                if (lcl.size() == 1) { uncheckedEnqueue(lcl[0]); continue; } 
+                
+                // this is the old minisat stuff, add the learnt clause
+                CRef cr = ca.alloc(lcl, true);
                 learnts.push(cr);
                 attachClause(cr);
                 claBumpActivity(ca[cr]);
-                uncheckedEnqueue(learnt_clause[0], cr);
+
+                // keep going while there is a learnt, only the last one should enqueue
+                if (learnt) continue; 
+
+                // only for the last one (the most recent one!!!) we are goingt to attach that clause
+                //uncheckedEnqueue(lcl[0], cr);
             }
 
             varDecayActivity();
