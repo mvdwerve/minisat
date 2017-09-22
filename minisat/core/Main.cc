@@ -143,17 +143,16 @@ int main(int argc, char** argv)
                 fprintf(res, "INDET\n");
             fclose(res);
         }
+        MPI_Finalize();
         
-#ifdef NDEBUG
-        exit(ret == l_True ? 10 : ret == l_False ? 20 : 0);     // (faster than "return", which will invoke the destructor for 'Solver')
-#else
+//#ifdef NDEBUG
+//        exit(ret == l_True ? 10 : ret == l_False ? 20 : 0);     // (faster than "return", which will invoke the destructor for 'Solver')
+//#else
         return (ret == l_True ? 10 : ret == l_False ? 20 : 0);
-#endif
+//#endif
     } catch (OutOfMemoryException&){
         printf("===============================================================================\n");
         printf("INDETERMINATE\n");
         exit(0);
     }
-
-    MPI_Finalize();
 }
