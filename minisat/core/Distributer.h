@@ -89,8 +89,6 @@ private:
         // the source is now -1 (unset it on emit)
         _source = -1;
 
-        std::cout << "doing an emit " << std::endl;
-
         // we emit to the receiver
         _receiver->receive(_source, clause);
     }
@@ -296,11 +294,23 @@ public:
         auto copy = std::make_shared<LitClause>();
         clause.copyTo(*copy);
 
-        // then we lock
-        std::unique_lock<std::mutex> lock(_bmutex);
+        // our broadcast should be accessed behind a lock
+        {
+            // then we lock
+            std::unique_lock<std::mutex> lock(_bmutex);
+        
+            // we make a direct copy to the queue
+            _broadcast.push(copy);
+        }
 
-        // we make a direct copy to the queue
-        _broadcast.push(copy);
+        // also pretend we've received this clause 
+        {
+            // then we lock
+            std::unique_lock<std::mutex> lock(_bmutex);
+            
+            // we make a direct copy to the queue
+            _received.push(copy);
+        }
     }
 
     /**
