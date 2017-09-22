@@ -191,7 +191,17 @@ private:
      *  Method that will broadcast a single clause (thread method, does the actual broadcast)
      */
     void broadcast_clause(const std::shared_ptr<LitClause> &clause) {
+        // we need to convert it to a native datatype
+        std::vector<int32_t> native(clause.size() + 1);
 
+        // loop over the clause
+        for (size_t i; i < clause.size(); i++) native.push_back(toInt(clause[i]));
+
+        // we append the zero (end)
+        native.push_back(0);
+
+        // and finally broadcast it
+        MPI::Broadcast(native.data(), native.size(), );
     }
 
     /**
