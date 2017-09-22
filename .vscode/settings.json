@@ -4,6 +4,8 @@
         "type_traits": "cpp",
         "xstring": "cpp",
         "xutility": "cpp",
-        "queue": "cpp"
+        "queue": "cpp",
+        "deque": "cpp",
+        "vector": "cpp"
     }
 }

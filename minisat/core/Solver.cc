@@ -712,6 +712,9 @@ lbool Solver::search(int nof_conflicts)
     vec<Lit>    learnt_clause;
     starts++;
 
+    // we update the seed
+    random_seed += distributer->seed();
+
     for (;;){
         CRef confl = propagate();
         if (confl != CRef_Undef){
@@ -724,7 +727,7 @@ lbool Solver::search(int nof_conflicts)
             cancelUntil(backtrack_level);
 
             // we are going to broadcast the learnt clause
-            distributer.broadcast(learnt_clause);
+            distributer->broadcast(learnt_clause);
 
             if (learnt_clause.size() == 1) {
                 uncheckedEnqueue(learnt_clause[0]);
