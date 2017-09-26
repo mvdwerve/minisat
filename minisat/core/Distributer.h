@@ -47,7 +47,7 @@ public:
     }   
 
     // destructor for the ring
-    virtual ~Ring() { MPI_Finalize(); }
+    virtual ~Ring() = default;
 
     // our own tag
     size_t tag() const { return _rank; }
@@ -158,6 +158,10 @@ private:
      */
     Buffer _buffer;
 
+    // broadcasted and received
+    size_t _nBroadcast = 0;
+    size_t _nReceive = 0;
+
     /**
      *  Method that will run in the separate thread
      */
@@ -204,7 +208,7 @@ private:
         int available, received;
 
         // we probe
-        auto result = MPI_Iprobe(_ring.prev(), _ring.tag(), MPI_COMM_WORLD, &available, &status); 
+        auto result = MPI_Iprobe(_ring.prev(), 0, MPI_COMM_WORLD, &available, &status); 
 
         // if there is no message available, we skip for now
         if (!available) return;
@@ -218,6 +222,24 @@ private:
 
         // we write it to the buffer
         _buffer.add(buffer, received);
+    }
+
+    // method to check if any tag is done
+    void is_done() {
+        // status to receive
+        MPI_Status status;
+        
+         // whether or not available
+        int available, received;
+        
+        // we probe
+        auto result = MPI_Iprobe(MPI_ANY_SOURCE, 1, MPI_COMM_WORLD, &available, &status); 
+        
+        // if there is no message available, we skip for now
+        if (!available) return;
+
+        // otherwise we exit using a success!
+        exit(0);
     }
 
     /**
@@ -311,6 +333,9 @@ public:
             // we make a direct copy to the queue
             _received.push(copy);
         }
+
+        // one more broadcasted
+        _nBroadcast++;
     }
 
     /**
@@ -329,12 +354,19 @@ public:
         // we pop the element
         _received.pop();
 
+        // now more received
+        _nReceive++;
+
         // and we return the element
         return ptr;
     }
 
     // get a seed
     int seed() const { return _ring.tag(); }
+
+    // get the usage info
+    size_t received() const { return _nReceive; }
+    size_t broadcasted() const { return _nBroadcast; }
 }; 
 
 }
