@@ -58,6 +58,12 @@ int main(int argc, char** argv)
     // initialize our connection
     MPI_Init(&argc, &argv);
 
+    // initialize the ring, maybe we're the main program
+    Ring ring;
+        
+    // if we're not a lucky process, we're going to close stdout
+    if (ring.tag() != 0) fclose(stdout);
+
     try {
         setUsageHelp("USAGE: %s [options] <input-file> <result-output-file>\n\n  where input may be either in plain or gzipped DIMACS.\n");
         setX86FPUPrecision();
@@ -152,18 +158,23 @@ int main(int argc, char** argv)
             printf("\n"); }
         printf(ret == l_True ? "SATISFIABLE\n" : ret == l_False ? "UNSATISFIABLE\n" : "INDETERMINATE\n");
         if (res != NULL){
-            if (ret == l_True){
+            if (ret == l_True) {
+                S.distributer->done();
                 fprintf(res, "SAT\n");
                 for (int i = 0; i < S.nVars(); i++)
                     if (S.model[i] != l_Undef)
                         fprintf(res, "%s%s%d", (i==0)?"":" ", (S.model[i]==l_True)?"":"-", i+1);
                 fprintf(res, " 0\n");
-            }else if (ret == l_False)
+            } else if (ret == l_False) {
+                S.distributer->done();
                 fprintf(res, "UNSAT\n");
-            else
+            } else
                 fprintf(res, "INDET\n");
             fclose(res);
         }
+
+        // stop the distributer
+        d.stop();
 
         MPI_Finalize();
 

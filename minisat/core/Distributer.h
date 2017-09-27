@@ -57,6 +57,9 @@ public:
     
     // our previous neighbour tag
     size_t prev() const { return (tag() - 1 + _size) % _size; }
+
+    // get the size
+    size_t size() const { return _size; }
 };
 
 class Buffer {
@@ -85,12 +88,12 @@ private:
 
         // the clause is now a new (empty) one
         _clause = std::make_shared<LitClause>();
-            
-        // the source is now -1 (unset it on emit)
-        _source = -1;
 
         // we emit to the receiver
         _receiver->receive(_source, clause);
+
+        // the source is now -1 (unset it on emit)
+        _source = -1;
     }
 
 public:
@@ -103,7 +106,7 @@ public:
         for (size_t i = 0; i < size; i++) {  
             // the next data element
             int32_t el = data[i]; 
-            
+
             // if there are no elements yet, this is the source
             if (_source == -1) _source = el;
 
@@ -233,12 +236,15 @@ private:
         int available, received;
         
         // we probe
-        auto result = MPI_Iprobe(MPI_ANY_SOURCE, 1, MPI_COMM_WORLD, &available, &status); 
+        auto result = MPI_Iprobe(_ring.prev(), 1, MPI_COMM_WORLD, &available, &status); 
         
         // if there is no message available, we skip for now
         if (!available) return;
 
-        // otherwise we exit using a success!
+        // we send to the next (we're done now)
+        done();
+
+        // otherwise we exit using a success (no printing -- VERY IMPORTANT!)
         exit(0);
     }
 
@@ -301,11 +307,8 @@ public:
      *  On destruction, we finalize the MPI stuff.
      */
     virtual ~Distributer() { 
-        // we will now stop
-        _stop = true;
-
-        // first off, we finish the thread
-        _thread.join();
+        // we stop
+        stop();
     }
 
     /**
@@ -325,17 +328,20 @@ public:
             _broadcast.push(copy);
         }
 
-        // also pretend we've received this clause 
-        {
-            // then we lock
-            std::unique_lock<std::mutex> lock(_bmutex);
-            
-            // we make a direct copy to the queue
-            _received.push(copy);
-        }
-
         // one more broadcasted
         _nBroadcast++;
+    }
+
+    // signify that we're done
+    void done() {
+        // set an i
+        int i = 0;
+
+        // we now stop!
+        _stop = true;
+
+        // send the message to _any_ it will never recv
+        MPI_Send(&i, 1, MPI_INT, _ring.next(), 1, MPI_COMM_WORLD);
     }
 
     /**
@@ -361,12 +367,25 @@ public:
         return ptr;
     }
 
+    // stop now
+    void stop() {         
+        // we will now stop
+        _stop = true;
+
+        // already done if not joinable
+        if (!_thread.joinable()) return;
+
+        // first off, we finish the thread
+        _thread.join();
+    }
+
     // get a seed
     int seed() const { return _ring.tag(); }
 
     // get the usage info
     size_t received() const { return _nReceive; }
     size_t broadcasted() const { return _nBroadcast; }
+    size_t size() const { return _ring.size(); }
 }; 
 
 }

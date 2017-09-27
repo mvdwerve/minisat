@@ -58,6 +58,12 @@ int main(int argc, char** argv)
     // initialize our connection
     MPI_Init(&argc, &argv);
 
+    // initialize the ring, maybe we're the main program
+    Ring ring;
+
+    // if we're not a lucky process, we're going to stdout
+    if (ring.tag() != 0) fclose(stdout);
+
     try {
         setUsageHelp("USAGE: %s [options] <input-file> <result-output-file>\n\n  where input may be either in plain or gzipped DIMACS.\n");
         setX86FPUPrecision();
@@ -72,10 +78,12 @@ int main(int argc, char** argv)
         parseOptions(argc, argv, true);
 
         Solver S;
+        Distributer d;
         double initial_time = cpuTime();
 
         S.verbosity = verb;
-        
+        S.distributer = &d;
+
         solver = &S;
         // Use signal handlers that forcibly quit until the solver will be able to respond to
         // interrupts:
@@ -143,6 +151,10 @@ int main(int argc, char** argv)
                 fprintf(res, "INDET\n");
             fclose(res);
         }
+
+        // we stop the distributer _now_
+        d.stop();
+
         MPI_Finalize();
         
 //#ifdef NDEBUG
