@@ -65,7 +65,7 @@ int main(int argc, char** argv)
     if (ring.tag() != 0) fclose(stdout);
 
     try {
-        setUsageHelp("USAGE: %s [options] <input-file> <result-output-file>\n\n  where input may be either in plain or gzipped DIMACS.\n");
+        setUsageHelp("c USAGE: %s [options] <input-file> <result-output-file>\n\n  where input may be either in plain or gzipped DIMACS.\n");
         setX86FPUPrecision();
 
         // Extra options:
@@ -94,28 +94,28 @@ int main(int argc, char** argv)
         if (mem_lim != 0) limitMemory(mem_lim);
         
         if (argc == 1)
-            printf("Reading from standard input... Use '--help' for help.\n");
+            printf("c Reading from standard input... Use '--help' for help.\n");
         
         gzFile in = (argc == 1) ? gzdopen(0, "rb") : gzopen(argv[1], "rb");
         if (in == NULL)
-            printf("ERROR! Could not open file: %s\n", argc == 1 ? "<stdin>" : argv[1]), exit(1);
+            printf("c ERROR! Could not open file: %s\n", argc == 1 ? "<stdin>" : argv[1]), exit(1);
         
         if (S.verbosity > 0){
-            printf("============================[ Problem Statistics ]=============================\n");
-            printf("|                                                                             |\n"); }
+            printf("c ============================[ Problem Statistics ]=============================\n");
+            printf("c |                                                                             |\n"); }
         
         parse_DIMACS(in, S, (bool)strictp);
         gzclose(in);
         FILE* res = (argc >= 3) ? fopen(argv[2], "wb") : NULL;
         
         if (S.verbosity > 0){
-            printf("|  Number of variables:  %12d                                         |\n", S.nVars());
-            printf("|  Number of clauses:    %12d                                         |\n", S.nClauses()); }
+            printf("c |  Number of variables:  %12d                                         |\n", S.nVars());
+            printf("c |  Number of clauses:    %12d                                         |\n", S.nClauses()); }
         
         double parsed_time = cpuTime();
         if (S.verbosity > 0){
-            printf("|  Parse time:           %12.2f s                                       |\n", parsed_time - initial_time);
-            printf("|                                                                             |\n"); }
+            printf("c |  Parse time:           %12.2f s                                       |\n", parsed_time - initial_time);
+            printf("c |                                                                             |\n"); }
  
         // Change to signal-handlers that will only notify the solver and allow it to terminate
         // voluntarily:
@@ -124,11 +124,11 @@ int main(int argc, char** argv)
         if (!S.simplify()){
             if (res != NULL) fprintf(res, "UNSAT\n"), fclose(res);
             if (S.verbosity > 0){
-                printf("===============================================================================\n");
-                printf("Solved by unit propagation\n");
+                printf("c ===============================================================================\n");
+                printf("c Solved by unit propagation\n");
                 S.printStats();
                 printf("\n"); }
-            printf("UNSATISFIABLE\n");
+            printf("s UNSATISFIABLE\n");
             exit(20);
         }
         
@@ -137,7 +137,8 @@ int main(int argc, char** argv)
         if (S.verbosity > 0){
             S.printStats();
             printf("\n"); }
-        printf(ret == l_True ? "SATISFIABLE\n" : ret == l_False ? "UNSATISFIABLE\n" : "INDETERMINATE\n");
+        printf("s ");
+        printf(ret == l_True ? "SATISFIABLE\n" : ret == l_False ? "UNSATISFIABLE\n" : "UNKNOWN\n");
         if (res != NULL){
             if (ret == l_True){
                 fprintf(res, "SAT\n");
@@ -150,6 +151,15 @@ int main(int argc, char** argv)
             else
                 fprintf(res, "INDET\n");
             fclose(res);
+        } else {
+            if (ret == l_True) {
+                for (int i = 0; i < S.nVars(); i++) {
+                    if (i % 10 == 0) printf("\nv ");
+                    if (S.model[i] != l_Undef)
+                        printf("%s%s%d", (i % 10 == 0) ? "" : " ", (S.model[i]==l_True)?"":"-", i+1);
+                }
+                printf(" 0\n");
+            }
         }
 
         // we stop the distributer _now_

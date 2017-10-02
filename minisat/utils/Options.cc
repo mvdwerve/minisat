@@ -44,7 +44,7 @@ void Minisat::parseOptions(int& argc, char** argv, bool strict)
 
             if (!parsed_ok){
                 if (strict && match(argv[i], "-"))
-                    fprintf(stderr, "ERROR! Unknown flag \"%s\". Use '--%shelp' for help.\n", argv[i], Option::getHelpPrefixString()), exit(1);
+                    fprintf(stderr, "c ERROR! Unknown flag \"%s\". Use '--%shelp' for help.\n", argv[i], Option::getHelpPrefixString()), exit(1);
                 else
                     argv[j++] = argv[i];
             }
@@ -83,9 +83,9 @@ void Minisat::printUsageAndExit (int /*argc*/, char** argv, bool verbose)
         prev_type = Option::getOptionList()[i]->type_name;
     }
 
-    fprintf(stderr, "\nHELP OPTIONS:\n\n");
-    fprintf(stderr, "  --%shelp        Print help message.\n", Option::getHelpPrefixString());
-    fprintf(stderr, "  --%shelp-verb   Print verbose help message.\n", Option::getHelpPrefixString());
+    fprintf(stderr, "\nc HELP OPTIONS:\n\n");
+    fprintf(stderr, "c   --%shelp        Print help message.\n", Option::getHelpPrefixString());
+    fprintf(stderr, "c   --%shelp-verb   Print verbose help message.\n", Option::getHelpPrefixString());
     fprintf(stderr, "\n");
     exit(0);
 }
