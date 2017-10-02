@@ -45,7 +45,7 @@ include_directories(${minisat_SOURCE_DIR})
 # Compile flags:
 
 add_definitions(-D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS)
-SET( CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -Wno-literal-suffix" )
+SET( CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -Wno-literal-suffix -Iminisat/" )
 
 #--------------------------------------------------------------------------------------------------
 # Build Targets:
