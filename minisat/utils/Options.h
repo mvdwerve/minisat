@@ -17,19 +17,19 @@ DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 **************************************************************************************************/
 
-#ifndef Minisat_Options_h
-#define Minisat_Options_h
+#ifndef Glucose_Options_h
+#define Glucose_Options_h
 
 #include <stdlib.h>
 #include <stdio.h>
 #include <math.h>
 #include <string.h>
 
-#include "minisat/mtl/IntTypes.h"
-#include "minisat/mtl/Vec.h"
-#include "minisat/utils/ParseUtils.h"
+#include "mtl/IntTypes.h"
+#include "mtl/Vec.h"
+#include "utils/ParseUtils.h"
 
-namespace Minisat {
+namespace Glucose {
 
 //==================================================================================================
 // Top-level option parse/help functions:
@@ -60,7 +60,7 @@ class Option
     struct OptionLt {
         bool operator()(const Option* x, const Option* y) {
             int test1 = strcmp(x->category, y->category);
-            return test1 < 0 || (test1 == 0 && strcmp(x->type_name, y->type_name) < 0);
+            return test1 < 0 || test1 == 0 && strcmp(x->type_name, y->type_name) < 0;
         }
     };
 

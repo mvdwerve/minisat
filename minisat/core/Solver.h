@@ -1,4 +1,12 @@
 /****************************************************************************************[Solver.h]
+ Glucose -- Copyright (c) 2009, Gilles Audemard, Laurent Simon
+				CRIL - Univ. Artois, France
+				LRI  - Univ. Paris Sud, France
+ 
+Glucose sources are based on MiniSat (see below MiniSat copyrights). Permissions and copyrights of
+Glucose are exactly the same as Minisat on which it is based on. (see below).
+
+---------------
 Copyright (c) 2003-2006, Niklas Een, Niklas Sorensson
 Copyright (c) 2007-2010, Niklas Sorensson
 
@@ -18,19 +26,19 @@ DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 **************************************************************************************************/
 
-#ifndef Minisat_Solver_h
-#define Minisat_Solver_h
+#ifndef Glucose_Solver_h
+#define Glucose_Solver_h
 
-#include "minisat/mtl/Vec.h"
-#include "minisat/mtl/Heap.h"
-#include "minisat/mtl/Alg.h"
-#include "minisat/mtl/IntMap.h"
-#include "minisat/utils/Options.h"
-#include "minisat/core/SolverTypes.h"
-#include "minisat/core/Distributer.h"
+#include "mtl/Vec.h"
+#include "mtl/Heap.h"
+#include "mtl/Alg.h"
+#include "utils/Options.h"
+#include "core/SolverTypes.h"
+#include "core/BoundedQueue.h"
+#include "core/Constants.h"
 
 
-namespace Minisat {
+namespace Glucose {
 
 //=================================================================================================
 // Solver -- the main class:
@@ -45,15 +53,13 @@ public:
 
     // Problem specification:
     //
-    Var     newVar    (lbool upol = l_Undef, bool dvar = true); // Add a new variable with parameters specifying variable mode.
-    void    releaseVar(Lit l);                                  // Make literal true and promise to never refer to variable again.
+    Var     newVar    (bool polarity = true, bool dvar = true); // Add a new variable with parameters specifying variable mode.
 
     bool    addClause (const vec<Lit>& ps);                     // Add a clause to the solver. 
     bool    addEmptyClause();                                   // Add the empty clause, making the solver contradictory.
     bool    addClause (Lit p);                                  // Add a unit clause to the solver. 
     bool    addClause (Lit p, Lit q);                           // Add a binary clause to the solver. 
     bool    addClause (Lit p, Lit q, Lit r);                    // Add a ternary clause to the solver. 
-    bool    addClause (Lit p, Lit q, Lit r, Lit s);             // Add a quaternary clause to the solver. 
     bool    addClause_(      vec<Lit>& ps);                     // Add a clause to the solver without making superflous internal copy. Will
                                                                 // change the passed vector 'ps'.
 
@@ -68,18 +74,12 @@ public:
     bool    solve        (Lit p, Lit q, Lit r);     // Search for a model that respects three assumptions.
     bool    okay         () const;                  // FALSE means solver is in a conflicting state
 
-    bool    implies      (const vec<Lit>& assumps, vec<Lit>& out);
-
-    // Iterate over clauses and top-level assignments:
-    ClauseIterator clausesBegin() const;
-    ClauseIterator clausesEnd()   const;
-    TrailIterator  trailBegin()   const;
-    TrailIterator  trailEnd  ()   const;
-
     void    toDimacs     (FILE* f, const vec<Lit>& assumps);            // Write CNF to file in DIMACS-format.
     void    toDimacs     (const char *file, const vec<Lit>& assumps);
     void    toDimacs     (FILE* f, Clause& c, vec<Var>& map, Var& max);
-
+    void printLit(Lit l);
+    void printClause(CRef c);
+    void printInitialClause(CRef c);
     // Convenience versions of 'toDimacs()':
     void    toDimacs     (const char* file);
     void    toDimacs     (const char* file, Lit p);
@@ -88,8 +88,8 @@ public:
     
     // Variable mode:
     // 
-    void    setPolarity    (Var v, lbool b); // Declare which polarity the decision heuristic should use for a variable. Requires mode 'polarity_user'.
-    void    setDecisionVar (Var v, bool b);  // Declare if a variable should be eligible for selection in the decision heuristic.
+    void    setPolarity    (Var v, bool b); // Declare which polarity the decision heuristic should use for a variable. Requires mode 'polarity_user'.
+    void    setDecisionVar (Var v, bool b); // Declare if a variable should be eligible for selection in the decision heuristic.
 
     // Read state:
     //
@@ -102,7 +102,11 @@ public:
     int     nLearnts   ()      const;       // The current number of learnt clauses.
     int     nVars      ()      const;       // The current number of variables.
     int     nFreeVars  ()      const;
-    void    printStats ()      const;       // Print some current statistics to standard output.
+
+    // Incremental mode
+    void setIncrementalMode();
+    void initNbInitialVars(int nb);
+    void printIncrementalStats();
 
     // Resource contraints:
     //
@@ -118,46 +122,58 @@ public:
     void    checkGarbage(double gf);
     void    checkGarbage();
 
+
+
+
     // Extra results: (read-only member variable)
     //
     vec<lbool> model;             // If problem is satisfiable, this vector contains the model (if any).
-    LSet       conflict;          // If problem is unsatisfiable (possibly under assumptions),
+    vec<Lit>   conflict;          // If problem is unsatisfiable (possibly under assumptions),
                                   // this vector represent the final conflict clause expressed in the assumptions.
 
     // Mode of operation:
     //
     int       verbosity;
+    int       verbEveryConflicts;
+    int       showModel;
+    // Constants For restarts
+    double    K;
+    double    R;
+    double    sizeLBDQueue;
+    double    sizeTrailQueue;
+
+    // Constants for reduce DB
+    int firstReduceDB;
+    int incReduceDB;
+    int specialIncReduceDB;
+    unsigned int lbLBDFrozenClause;
+
+    // Constant for reducing clause
+    int lbSizeMinimizingClause;
+    unsigned int lbLBDMinimizingClause;
+
     double    var_decay;
     double    clause_decay;
     double    random_var_freq;
     double    random_seed;
-    bool      luby_restart;
     int       ccmin_mode;         // Controls conflict clause minimization (0=none, 1=basic, 2=deep).
     int       phase_saving;       // Controls the level of phase saving (0=none, 1=limited, 2=full).
     bool      rnd_pol;            // Use random polarities for branching heuristics.
     bool      rnd_init_act;       // Initialize variable activities with a small random value.
     double    garbage_frac;       // The fraction of wasted memory allowed before a garbage collection is triggered.
-    int       min_learnts_lim;    // Minimum number to set the learnts limit to.
 
-    int       restart_first;      // The initial restart limit.                                                                (default 100)
-    double    restart_inc;        // The factor with which the restart limit is multiplied in each restart.                    (default 1.5)
-    double    learntsize_factor;  // The intitial limit for learnt clauses is a factor of the original clauses.                (default 1 / 3)
-    double    learntsize_inc;     // The limit for learnt clauses is multiplied with this factor each restart.                 (default 1.1)
+    // Certified UNSAT ( Thanks to Marijn Heule)
+    FILE*               certifiedOutput;
+    bool                certifiedUNSAT;
 
-    int       learntsize_adjust_start_confl;
-    double    learntsize_adjust_inc;
-
+    
     // Statistics: (read-only member variable)
     //
-    uint64_t solves, starts, decisions, rnd_decisions, propagations, conflicts;
-    uint64_t dec_vars, num_clauses, num_learnts, clauses_literals, learnts_literals, max_literals, tot_literals;
-
-    // Distributer to use
-    //
-    Distributer *distributer;
+    uint64_t nbRemovedClauses,nbReducedClauses,nbDL2,nbBin,nbUn,nbReduceDB,solves, starts, decisions, rnd_decisions, propagations, conflicts,conflictsRestarts,nbstopsrestarts,nbstopsrestartssame,lastblockatrestart;
+    uint64_t dec_vars, clauses_literals, learnts_literals, max_literals, tot_literals;
 
 protected:
-
+    long curRestart;
     // Helper structures:
     //
     struct VarData { CRef reason; int level; };
@@ -179,57 +195,65 @@ protected:
     };
 
     struct VarOrderLt {
-        const IntMap<Var, double>&  activity;
+        const vec<double>&  activity;
         bool operator () (Var x, Var y) const { return activity[x] > activity[y]; }
-        VarOrderLt(const IntMap<Var, double>&  act) : activity(act) { }
+        VarOrderLt(const vec<double>&  act) : activity(act) { }
     };
 
-    struct ShrinkStackElem {
-        uint32_t i;
-        Lit      l;
-        ShrinkStackElem(uint32_t _i, Lit _l) : i(_i), l(_l){}
-    };
 
     // Solver state:
     //
-    vec<CRef>           clauses;          // List of problem clauses.
-    vec<CRef>           learnts;          // List of learnt clauses.
-    vec<Lit>            trail;            // Assignment stack; stores all assigments made in the order they were made.
-    vec<int>            trail_lim;        // Separator indices for different decision levels in 'trail'.
-    vec<Lit>            assumptions;      // Current set of assumptions provided to solve by the user.
-
-    VMap<double>        activity;         // A heuristic measurement of the activity of a variable.
-    VMap<lbool>         assigns;          // The current assignments.
-    VMap<char>          polarity;         // The preferred polarity of each variable.
-    VMap<lbool>         user_pol;         // The users preferred polarity of each variable.
-    VMap<char>          decision;         // Declares if a variable is eligible for selection in the decision heuristic.
-    VMap<VarData>       vardata;          // Stores reason and level for each variable.
-    OccLists<Lit, vec<Watcher>, WatcherDeleted, MkIndexLit>
-                        watches;          // 'watches[lit]' is a list of constraints watching 'lit' (will go there if literal becomes true).
-
-    Heap<Var,VarOrderLt>order_heap;       // A priority queue of variables ordered with respect to the variable activity.
-
+    int lastIndexRed;
     bool                ok;               // If FALSE, the constraints are already unsatisfiable. No part of the solver state may be used!
     double              cla_inc;          // Amount to bump next clause with.
+    vec<double>         activity;         // A heuristic measurement of the activity of a variable.
     double              var_inc;          // Amount to bump next variable with.
+    OccLists<Lit, vec<Watcher>, WatcherDeleted>
+                        watches;          // 'watches[lit]' is a list of constraints watching 'lit' (will go there if literal becomes true).
+    OccLists<Lit, vec<Watcher>, WatcherDeleted>
+                        watchesBin;          // 'watches[lit]' is a list of constraints watching 'lit' (will go there if literal becomes true).
+    vec<CRef>           clauses;          // List of problem clauses.
+    vec<CRef>           learnts;          // List of learnt clauses.
+
+    vec<lbool>          assigns;          // The current assignments.
+    vec<char>           polarity;         // The preferred polarity of each variable.
+    vec<char>           decision;         // Declares if a variable is eligible for selection in the decision heuristic.
+    vec<Lit>            trail;            // Assignment stack; stores all assigments made in the order they were made.
+        vec<int>            nbpos;
+    vec<int>            trail_lim;        // Separator indices for different decision levels in 'trail'.
+    vec<VarData>        vardata;          // Stores reason and level for each variable.
     int                 qhead;            // Head of queue (as index into the trail -- no more explicit propagation queue in MiniSat).
     int                 simpDB_assigns;   // Number of top-level assignments since last execution of 'simplify()'.
     int64_t             simpDB_props;     // Remaining number of propagations that must be made before next execution of 'simplify()'.
+    vec<Lit>            assumptions;      // Current set of assumptions provided to solve by the user.
+    Heap<VarOrderLt>    order_heap;       // A priority queue of variables ordered with respect to the variable activity.
     double              progress_estimate;// Set by 'search()'.
     bool                remove_satisfied; // Indicates whether possibly inefficient linear scan for satisfied clauses should be performed in 'simplify'.
-    Var                 next_var;         // Next variable to be created.
+    vec<unsigned int> permDiff;      // permDiff[var] contains the current conflict number... Used to count the number of  LBD
+    
+#ifdef UPDATEVARACTIVITY
+    // UPDATEVARACTIVITY trick (see competition'09 companion paper)
+    vec<Lit> lastDecisionLevel; 
+#endif
+
     ClauseAllocator     ca;
 
-    vec<Var>            released_vars;
-    vec<Var>            free_vars;
+    int nbclausesbeforereduce;            // To know when it is time to reduce clause database
+    
+    bqueue<unsigned int> trailQueue,lbdQueue; // Bounded queues for restarts.
+    float sumLBD; // used to compute the global average of LBD. Restarts...
+    int sumAssumptions;
+
 
     // Temporaries (to reduce allocation overhead). Each variable is prefixed by the method in which it is
     // used, exept 'seen' wich is used in several places.
     //
-    VMap<char>          seen;
-    vec<ShrinkStackElem>analyze_stack;
+    vec<char>           seen;
+    vec<Lit>            analyze_stack;
     vec<Lit>            analyze_toclear;
     vec<Lit>            add_tmp;
+    unsigned int  MYFLAG;
+
 
     double              max_learnts;
     double              learntsize_adjust_confl;
@@ -241,6 +265,15 @@ protected:
     int64_t             propagation_budget; // -1 means no budget.
     bool                asynch_interrupt;
 
+
+    // Variables added for incremental mode
+    int incremental; // Use incremental SAT Solver
+    int nbVarsInitialFormula; // nb VAR in formula without assumptions (incremental SAT)
+    double totalTime4Sat,totalTime4Unsat;
+    int nbSatCalls,nbUnsatCalls;
+    vec<int> assumptionPositions,initialPositions;
+
+
     // Main internal methods:
     //
     void     insertVarOrder   (Var x);                                                 // Insert a variable in the decision order priority queue.
@@ -250,9 +283,9 @@ protected:
     bool     enqueue          (Lit p, CRef from = CRef_Undef);                         // Test if fact 'p' contradicts current state, enqueue otherwise.
     CRef     propagate        ();                                                      // Perform unit propagation. Returns possibly conflicting clause.
     void     cancelUntil      (int level);                                             // Backtrack until a certain level.
-    void     analyze          (CRef confl, vec<Lit>& out_learnt, int& out_btlevel);    // (bt = backtrack)
-    void     analyzeFinal     (Lit p, LSet& out_conflict);                             // COULD THIS BE IMPLEMENTED BY THE ORDINARIY "analyze" BY SOME REASONABLE GENERALIZATION?
-    bool     litRedundant     (Lit p);                                                 // (helper method for 'analyze()')
+    void     analyze          (CRef confl, vec<Lit>& out_learnt, vec<Lit> & selectors, int& out_btlevel,unsigned int &nblevels,unsigned int &szWithoutSelectors);    // (bt = backtrack)
+    void     analyzeFinal     (Lit p, vec<Lit>& out_conflict);                         // COULD THIS BE IMPLEMENTED BY THE ORDINARIY "analyze" BY SOME REASONABLE GENERALIZATION?
+    bool     litRedundant     (Lit p, uint32_t abstract_levels);                       // (helper method for 'analyze()')
     lbool    search           (int nof_conflicts);                                     // Search for a given number of conflicts.
     lbool    solve_           ();                                                      // Main solve method (assumptions given in 'assumptions').
     void     reduceDB         ();                                                      // Reduce the set of learnt clauses.
@@ -272,9 +305,14 @@ protected:
     void     attachClause     (CRef cr);               // Attach a clause to watcher lists.
     void     detachClause     (CRef cr, bool strict = false); // Detach a clause to watcher lists.
     void     removeClause     (CRef cr);               // Detach and free a clause.
-    bool     isRemoved        (CRef cr) const;         // Test if a clause has been removed.
     bool     locked           (const Clause& c) const; // Returns TRUE if a clause is a reason for some implication in the current state.
     bool     satisfied        (const Clause& c) const; // Returns TRUE if a clause is satisfied in the current state.
+
+    unsigned int computeLBD(const vec<Lit> & lits,int end=-1);
+    unsigned int computeLBD(const Clause &c);
+    void minimisationWithBinaryResolution(vec<Lit> &out_learnt);
+
+    void     relocAll         (ClauseAllocator& to);
 
     // Misc:
     //
@@ -284,7 +322,7 @@ protected:
     int      level            (Var x) const;
     double   progressEstimate ()      const; // DELETE THIS ?? IT'S NOT VERY USEFUL ...
     bool     withinBudget     ()      const;
-    void     relocAll         (ClauseAllocator& to);
+    inline bool isSelector(Var v) {return (incremental && v>nbVarsInitialFormula);}
 
     // Static helpers:
     //
@@ -344,10 +382,14 @@ inline bool     Solver::addEmptyClause  ()                      { add_tmp.clear(
 inline bool     Solver::addClause       (Lit p)                 { add_tmp.clear(); add_tmp.push(p); return addClause_(add_tmp); }
 inline bool     Solver::addClause       (Lit p, Lit q)          { add_tmp.clear(); add_tmp.push(p); add_tmp.push(q); return addClause_(add_tmp); }
 inline bool     Solver::addClause       (Lit p, Lit q, Lit r)   { add_tmp.clear(); add_tmp.push(p); add_tmp.push(q); add_tmp.push(r); return addClause_(add_tmp); }
-inline bool     Solver::addClause       (Lit p, Lit q, Lit r, Lit s){ add_tmp.clear(); add_tmp.push(p); add_tmp.push(q); add_tmp.push(r); add_tmp.push(s); return addClause_(add_tmp); }
-
-inline bool     Solver::isRemoved       (CRef cr)         const { return ca[cr].mark() == 1; }
-inline bool     Solver::locked          (const Clause& c) const { return value(c[0]) == l_True && reason(var(c[0])) != CRef_Undef && ca.lea(reason(var(c[0]))) == &c; }
+ inline bool     Solver::locked          (const Clause& c) const { 
+   if(c.size()>2) 
+     return value(c[0]) == l_True && reason(var(c[0])) != CRef_Undef && ca.lea(reason(var(c[0]))) == &c; 
+   return 
+     (value(c[0]) == l_True && reason(var(c[0])) != CRef_Undef && ca.lea(reason(var(c[0]))) == &c)
+     || 
+     (value(c[1]) == l_True && reason(var(c[1])) != CRef_Undef && ca.lea(reason(var(c[1]))) == &c);
+ }
 inline void     Solver::newDecisionLevel()                      { trail_lim.push(trail.size()); }
 
 inline int      Solver::decisionLevel ()      const   { return trail_lim.size(); }
@@ -357,12 +399,11 @@ inline lbool    Solver::value         (Lit p) const   { return assigns[var(p)] ^
 inline lbool    Solver::modelValue    (Var x) const   { return model[x]; }
 inline lbool    Solver::modelValue    (Lit p) const   { return model[var(p)] ^ sign(p); }
 inline int      Solver::nAssigns      ()      const   { return trail.size(); }
-inline int      Solver::nClauses      ()      const   { return num_clauses; }
-inline int      Solver::nLearnts      ()      const   { return num_learnts; }
-inline int      Solver::nVars         ()      const   { return next_var; }
-// TODO: nFreeVars() is not quite correct, try to calculate right instead of adapting it like below:
+inline int      Solver::nClauses      ()      const   { return clauses.size(); }
+inline int      Solver::nLearnts      ()      const   { return learnts.size(); }
+inline int      Solver::nVars         ()      const   { return vardata.size(); }
 inline int      Solver::nFreeVars     ()      const   { return (int)dec_vars - (trail_lim.size() == 0 ? trail.size() : trail_lim[0]); }
-inline void     Solver::setPolarity   (Var v, lbool b){ user_pol[v] = b; }
+inline void     Solver::setPolarity   (Var v, bool b) { polarity[v] = b; }
 inline void     Solver::setDecisionVar(Var v, bool b) 
 { 
     if      ( b && !decision[v]) dec_vars++;
@@ -392,12 +433,6 @@ inline bool     Solver::solve         (const vec<Lit>& assumps){ budgetOff(); as
 inline lbool    Solver::solveLimited  (const vec<Lit>& assumps){ assumps.copyTo(assumptions); return solve_(); }
 inline bool     Solver::okay          ()      const   { return ok; }
 
-inline ClauseIterator Solver::clausesBegin() const { return ClauseIterator(ca, &clauses[0]); }
-inline ClauseIterator Solver::clausesEnd  () const { return ClauseIterator(ca, &clauses[clauses.size()]); }
-inline TrailIterator  Solver::trailBegin  () const { return TrailIterator(&trail[0]); }
-inline TrailIterator  Solver::trailEnd    () const { 
-    return TrailIterator(&trail[decisionLevel() == 0 ? trail.size() : trail_lim[0]]); }
-
 inline void     Solver::toDimacs     (const char* file){ vec<Lit> as; toDimacs(file, as); }
 inline void     Solver::toDimacs     (const char* file, Lit p){ vec<Lit> as; as.push(p); toDimacs(file, as); }
 inline void     Solver::toDimacs     (const char* file, Lit p, Lit q){ vec<Lit> as; as.push(p); as.push(q); toDimacs(file, as); }
@@ -406,6 +441,33 @@ inline void     Solver::toDimacs     (const char* file, Lit p, Lit q, Lit r){ ve
 
 //=================================================================================================
 // Debug etc:
+
+
+inline void Solver::printLit(Lit l)
+{
+    printf("%s%d:%c", sign(l) ? "-" : "", var(l)+1, value(l) == l_True ? '1' : (value(l) == l_False ? '0' : 'X'));
+}
+
+
+inline void Solver::printClause(CRef cr)
+{
+  Clause &c = ca[cr];
+    for (int i = 0; i < c.size(); i++){
+        printLit(c[i]);
+        printf(" ");
+    }
+}
+
+inline void Solver::printInitialClause(CRef cr)
+{
+  Clause &c = ca[cr];
+    for (int i = 0; i < c.size(); i++){
+      if(!isSelector(var(c[i]))) {
+	printLit(c[i]);
+        printf(" ");
+      }
+    }
+}
 
 
 //=================================================================================================

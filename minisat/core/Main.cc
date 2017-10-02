@@ -1,4 +1,13 @@
 /*****************************************************************************************[Main.cc]
+ Glucose -- Copyright (c) 2009, Gilles Audemard, Laurent Simon
+				CRIL - Univ. Artois, France
+				LRI  - Univ. Paris Sud, France
+ 
+Glucose sources are based on MiniSat (see below MiniSat copyrights). Permissions and copyrights of
+Glucose are exactly the same as Minisat on which it is based on. (see below).
+
+---------------
+
 Copyright (c) 2003-2006, Niklas Een, Niklas Sorensson
 Copyright (c) 2007-2010, Niklas Sorensson
 
@@ -19,32 +28,57 @@ OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWA
 **************************************************************************************************/
 
 #include <errno.h>
+
+#include <signal.h>
 #include <zlib.h>
 
-#include "minisat/utils/System.h"
-#include "minisat/utils/ParseUtils.h"
-#include "minisat/utils/Options.h"
-#include "minisat/core/Dimacs.h"
-#include "minisat/core/Solver.h"
-#include "minisat/core/Distributer.h"
+#include "utils/System.h"
+#include "utils/ParseUtils.h"
+#include "utils/Options.h"
+#include "core/Dimacs.h"
+#include "core/Solver.h"
 
-using namespace Minisat;
+using namespace Glucose;
 
 //=================================================================================================
+
+
+void printStats(Solver& solver)
+{
+    double cpu_time = cpuTime();
+    double mem_used = 0;//memUsedPeak();
+    printf("c restarts              : %"PRIu64" (%"PRIu64" conflicts in avg)\n", solver.starts,(solver.starts>0 ?solver.conflicts/solver.starts : 0));
+    printf("c blocked restarts      : %"PRIu64" (multiple: %"PRIu64") \n", solver.nbstopsrestarts,solver.nbstopsrestartssame);
+    printf("c last block at restart : %"PRIu64"\n",solver.lastblockatrestart);
+    printf("c nb ReduceDB           : %lld\n", solver.nbReduceDB);
+    printf("c nb removed Clauses    : %lld\n",solver.nbRemovedClauses);
+    printf("c nb learnts DL2        : %lld\n", solver.nbDL2);
+    printf("c nb learnts size 2     : %lld\n", solver.nbBin);
+    printf("c nb learnts size 1     : %lld\n", solver.nbUn);
+
+    printf("c conflicts             : %-12"PRIu64"   (%.0f /sec)\n", solver.conflicts   , solver.conflicts   /cpu_time);
+    printf("c decisions             : %-12"PRIu64"   (%4.2f %% random) (%.0f /sec)\n", solver.decisions, (float)solver.rnd_decisions*100 / (float)solver.decisions, solver.decisions   /cpu_time);
+    printf("c propagations          : %-12"PRIu64"   (%.0f /sec)\n", solver.propagations, solver.propagations/cpu_time);
+    printf("c conflict literals     : %-12"PRIu64"   (%4.2f %% deleted)\n", solver.tot_literals, (solver.max_literals - solver.tot_literals)*100 / (double)solver.max_literals);
+    printf("c nb reduced Clauses    : %lld\n",solver.nbReducedClauses);
+    
+    if (mem_used != 0) printf("Memory used           : %.2f MB\n", mem_used);
+    printf("c CPU time              : %g s\n", cpu_time);
+}
 
 
 static Solver* solver;
 // Terminate by notifying the solver and back out gracefully. This is mainly to have a test-case
 // for this feature of the Solver as it may take longer than an immediate call to '_exit()'.
-static void SIGINT_interrupt(int) { solver->interrupt(); }
+static void SIGINT_interrupt(int signum) { solver->interrupt(); }
 
 // Note that '_exit()' rather than 'exit()' has to be used. The reason is that 'exit()' calls
 // destructors and may cause deadlocks if a malloc/free function happens to be running (these
 // functions are guarded by locks for multithreaded use).
-static void SIGINT_exit(int) {
+static void SIGINT_exit(int signum) {
     printf("\n"); printf("*** INTERRUPTED ***\n");
     if (solver->verbosity > 0){
-        solver->printStats();
+        printStats(*solver);
         printf("\n"); printf("*** INTERRUPTED ***\n"); }
     _exit(1); }
 
@@ -55,115 +89,144 @@ static void SIGINT_exit(int) {
 
 int main(int argc, char** argv)
 {
-    // initialize our connection
-    MPI_Init(&argc, &argv);
-
-    // initialize the ring, maybe we're the main program
-    Ring ring;
-
-    // if we're not a lucky process, we're going to stdout
-    if (ring.tag() != 0) fclose(stdout);
-
+  printf("c\nc This is glucose 3.0 --  based on MiniSAT (Many thanks to MiniSAT team)\nc\n");
     try {
-        setUsageHelp("USAGE: %s [options] <input-file> <result-output-file>\n\n  where input may be either in plain or gzipped DIMACS.\n");
-        setX86FPUPrecision();
-
+        setUsageHelp("c USAGE: %s [options] <input-file> <result-output-file>\n\n  where input may be either in plain or gzipped DIMACS.\n");
+        // printf("This is MiniSat 2.0 beta\n");
+        
+#if defined(__linux__)
+        fpu_control_t oldcw, newcw;
+        _FPU_GETCW(oldcw); newcw = (oldcw & ~_FPU_EXTENDED) | _FPU_DOUBLE; _FPU_SETCW(newcw);
+        printf("c WARNING: for repeatability, setting FPU to use double precision\n");
+#endif
         // Extra options:
         //
         IntOption    verb   ("MAIN", "verb",   "Verbosity level (0=silent, 1=some, 2=more).", 1, IntRange(0, 2));
-        IntOption    cpu_lim("MAIN", "cpu-lim","Limit on CPU time allowed in seconds.\n", 0, IntRange(0, INT32_MAX));
-        IntOption    mem_lim("MAIN", "mem-lim","Limit on memory usage in megabytes.\n", 0, IntRange(0, INT32_MAX));
-        BoolOption   strictp("MAIN", "strict", "Validate DIMACS header during parsing.", false);
+        BoolOption   mod   ("MAIN", "model",   "show model.", false);
+        IntOption    vv  ("MAIN", "vv",   "Verbosity every vv conflicts", 10000, IntRange(1,INT32_MAX));
+        IntOption    cpu_lim("MAIN", "cpu-lim","Limit on CPU time allowed in seconds.\n", INT32_MAX, IntRange(0, INT32_MAX));
+        IntOption    mem_lim("MAIN", "mem-lim","Limit on memory usage in megabytes.\n", INT32_MAX, IntRange(0, INT32_MAX));
         
+
         parseOptions(argc, argv, true);
 
         Solver S;
-        Distributer d;
         double initial_time = cpuTime();
 
         S.verbosity = verb;
-        S.distributer = &d;
-
+        S.verbEveryConflicts = vv;
+	S.showModel = mod;
         solver = &S;
         // Use signal handlers that forcibly quit until the solver will be able to respond to
         // interrupts:
-        sigTerm(SIGINT_exit);
+	//        signal(SIGINT, SIGINT_exit);
+        //signal(SIGXCPU,SIGINT_exit);
 
-        // Try to set resource limits:
-        if (cpu_lim != 0) limitTime(cpu_lim);
-        if (mem_lim != 0) limitMemory(mem_lim);
+        // Set limit on CPU-time:
+        if (cpu_lim != INT32_MAX){
+            rlimit rl;
+            getrlimit(RLIMIT_CPU, &rl);
+            if (rl.rlim_max == RLIM_INFINITY || (rlim_t)cpu_lim < rl.rlim_max){
+                rl.rlim_cur = cpu_lim;
+                if (setrlimit(RLIMIT_CPU, &rl) == -1)
+                    printf("c WARNING! Could not set resource limit: CPU-time.\n");
+            } }
+
+        // Set limit on virtual memory:
+        if (mem_lim != INT32_MAX){
+            rlim_t new_mem_lim = (rlim_t)mem_lim * 1024*1024;
+            rlimit rl;
+            getrlimit(RLIMIT_AS, &rl);
+            if (rl.rlim_max == RLIM_INFINITY || new_mem_lim < rl.rlim_max){
+                rl.rlim_cur = new_mem_lim;
+                if (setrlimit(RLIMIT_AS, &rl) == -1)
+                    printf("c WARNING! Could not set resource limit: Virtual memory.\n");
+            } }
         
         if (argc == 1)
-            printf("Reading from standard input... Use '--help' for help.\n");
+            printf("c Reading from standard input... Use '--help' for help.\n");
         
         gzFile in = (argc == 1) ? gzdopen(0, "rb") : gzopen(argv[1], "rb");
         if (in == NULL)
-            printf("ERROR! Could not open file: %s\n", argc == 1 ? "<stdin>" : argv[1]), exit(1);
+            printf("c ERROR! Could not open file: %s\n", argc == 1 ? "<stdin>" : argv[1]), exit(1);
         
         if (S.verbosity > 0){
-            printf("============================[ Problem Statistics ]=============================\n");
-            printf("|                                                                             |\n"); }
+            printf("c ========================================[ Problem Statistics ]===========================================\n");
+            printf("c |                                                                                                       |\n"); }
         
-        parse_DIMACS(in, S, (bool)strictp);
+        parse_DIMACS(in, S);
         gzclose(in);
-        FILE* res = (argc >= 3) ? fopen(argv[2], "wb") : NULL;
         
+
+	
+        FILE* res = (argc >= 3) ? fopen(argv[argc-1], "wb") : NULL;
+
         if (S.verbosity > 0){
-            printf("|  Number of variables:  %12d                                         |\n", S.nVars());
-            printf("|  Number of clauses:    %12d                                         |\n", S.nClauses()); }
+            printf("c |  Number of variables:  %12d                                                                   |\n", S.nVars());
+            printf("c |  Number of clauses:    %12d                                                                   |\n", S.nClauses()); }
         
         double parsed_time = cpuTime();
         if (S.verbosity > 0){
-            printf("|  Parse time:           %12.2f s                                       |\n", parsed_time - initial_time);
-            printf("|                                                                             |\n"); }
+            printf("c |  Parse time:           %12.2f s                                                                 |\n", parsed_time - initial_time);
+            printf("c |                                                                                                       |\n"); }
  
         // Change to signal-handlers that will only notify the solver and allow it to terminate
         // voluntarily:
-        sigTerm(SIGINT_interrupt);
+        //signal(SIGINT, SIGINT_interrupt);
+        //signal(SIGXCPU,SIGINT_interrupt);
        
         if (!S.simplify()){
+            if (S.certifiedOutput != NULL) fprintf(S.certifiedOutput, "0\n"), fclose(S.certifiedOutput);
             if (res != NULL) fprintf(res, "UNSAT\n"), fclose(res);
             if (S.verbosity > 0){
-                printf("===============================================================================\n");
+	        printf("c =========================================================================================================\n");
                 printf("Solved by unit propagation\n");
-                S.printStats();
+                printStats(S);
                 printf("\n"); }
-            printf("UNSATISFIABLE\n");
+            printf("s UNSATISFIABLE\n");
             exit(20);
         }
-        
+
         vec<Lit> dummy;
         lbool ret = S.solveLimited(dummy);
         if (S.verbosity > 0){
-            S.printStats();
+            printStats(S);
             printf("\n"); }
-        printf(ret == l_True ? "SATISFIABLE\n" : ret == l_False ? "UNSATISFIABLE\n" : "INDETERMINATE\n");
-        if (res != NULL){
-            if (ret == l_True){
-                fprintf(res, "SAT\n");
-                for (int i = 0; i < S.nVars(); i++)
-                    if (S.model[i] != l_Undef)
-                        fprintf(res, "%s%s%d", (i==0)?"":" ", (S.model[i]==l_True)?"":"-", i+1);
-                fprintf(res, " 0\n");
-            }else if (ret == l_False)
-                fprintf(res, "UNSAT\n");
-            else
-                fprintf(res, "INDET\n");
-            fclose(res);
-        }
 
-        // we stop the distributer _now_
-        d.stop();
-
-        MPI_Finalize();
-        
-//#ifdef NDEBUG
-//        exit(ret == l_True ? 10 : ret == l_False ? 20 : 0);     // (faster than "return", which will invoke the destructor for 'Solver')
-//#else
+	//-------------- Result is put in a external file
+        if (res != NULL){  
+	  if (ret == l_True){
+	    fprintf(res, "SAT\n");
+	    for (int i = 0; i < S.nVars(); i++)
+	      if (S.model[i] != l_Undef)
+		fprintf(res, "%s%s%d", (i==0)?"":" ", (S.model[i]==l_True)?"":"-", i+1);
+	    fprintf(res, " 0\n");
+	  }else if (ret == l_False)
+	    fprintf(res, "UNSAT\n");
+	  else
+	    fprintf(res, "INDET\n");
+	  fclose(res);
+	
+	//-------------- Want certified output
+        } else { 
+	  printf(ret == l_True ? "s SATISFIABLE\n" : ret == l_False ? "s UNSATISFIABLE\n" : "s INDETERMINATE\n");
+	  if(S.showModel && ret==l_True) {
+	    printf("v ");
+	    for (int i = 0; i < S.nVars(); i++)
+	      if (S.model[i] != l_Undef)
+		printf("%s%s%d", (i==0)?"":" ", (S.model[i]==l_True)?"":"-", i+1);
+	    printf(" 0\n");
+	  }
+	}
+    
+    
+#ifdef NDEBUG
+        exit(ret == l_True ? 10 : ret == l_False ? 20 : 0);     // (faster than "return", which will invoke the destructor for 'Solver')
+#else
         return (ret == l_True ? 10 : ret == l_False ? 20 : 0);
-//#endif
+#endif
     } catch (OutOfMemoryException&){
-        printf("===============================================================================\n");
+      printf("c ===================================================================================================\n");
         printf("INDETERMINATE\n");
         exit(0);
     }

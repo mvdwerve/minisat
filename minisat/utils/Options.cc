@@ -17,13 +17,13 @@ DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 **************************************************************************************************/
 
-#include "minisat/mtl/Sort.h"
-#include "minisat/utils/Options.h"
-#include "minisat/utils/ParseUtils.h"
+#include "mtl/Sort.h"
+#include "utils/Options.h"
+#include "utils/ParseUtils.h"
 
-using namespace Minisat;
+using namespace Glucose;
 
-void Minisat::parseOptions(int& argc, char** argv, bool strict)
+void Glucose::parseOptions(int& argc, char** argv, bool strict)
 {
     int i, j;
     for (i = j = 1; i < argc; i++){
@@ -42,12 +42,11 @@ void Minisat::parseOptions(int& argc, char** argv, bool strict)
                 // fprintf(stderr, "checking %d: %s against flag <%s> (%s)\n", i, argv[i], Option::getOptionList()[k]->name, parsed_ok ? "ok" : "skip");
             }
 
-            if (!parsed_ok){
+            if (!parsed_ok)
                 if (strict && match(argv[i], "-"))
                     fprintf(stderr, "ERROR! Unknown flag \"%s\". Use '--%shelp' for help.\n", argv[i], Option::getHelpPrefixString()), exit(1);
                 else
                     argv[j++] = argv[i];
-            }
         }
     }
 
@@ -55,15 +54,15 @@ void Minisat::parseOptions(int& argc, char** argv, bool strict)
 }
 
 
-void Minisat::setUsageHelp      (const char* str){ Option::getUsageString() = str; }
-void Minisat::setHelpPrefixStr  (const char* str){ Option::getHelpPrefixString() = str; }
-void Minisat::printUsageAndExit (int /*argc*/, char** argv, bool verbose)
+void Glucose::setUsageHelp      (const char* str){ Option::getUsageString() = str; }
+void Glucose::setHelpPrefixStr  (const char* str){ Option::getHelpPrefixString() = str; }
+void Glucose::printUsageAndExit (int argc, char** argv, bool verbose)
 {
     const char* usage = Option::getUsageString();
     if (usage != NULL)
         fprintf(stderr, usage, argv[0]);
 
-    sort(Option::getOptionList(), Option::OptionLt());
+        sort(Option::getOptionList(), Option::OptionLt());
 
     const char* prev_cat  = NULL;
     const char* prev_type = NULL;
