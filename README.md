@@ -9,8 +9,8 @@ make
 ```
 
 ## Usage
-`n` denotes the amount of processes to run.
+`<n>` denotes the amount of processes to run.
 
 ```
-mpirun -np <n> ./minisat --rnd-init
+mpirun -np <n> ./minisat --rnd-init <...>
 ```
