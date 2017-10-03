@@ -772,13 +772,13 @@ lbool Solver::search(int nof_conflicts)
             analyze(confl, learnt_clause, backtrack_level);
             cancelUntil(backtrack_level);
 
-            // we are going to broadcast the learnt clause
-            distributer->broadcast(learnt_clause);
-
             // normally process the learnt clause now
             if (learnt_clause.size() == 1) uncheckedEnqueue(learnt_clause[0]);
             else
             {
+                // we are going to broadcast the learnt clause
+                distributer->broadcast(learnt_clause);
+
                 CRef cr = ca.alloc(learnt_clause, true);
                 learnts.push(cr);
                 attachClause(cr);
@@ -955,6 +955,7 @@ lbool Solver::solve_()
 
             // this is the old minisat stuff, add the learnt clause
             if (lcl.size() == 1) {
+                assert(false);
                 uncheckedEnqueue(lcl[0]);
             } else {
                 CRef cr = ca.alloc(lcl, true);
@@ -962,6 +963,9 @@ lbool Solver::solve_()
                 attachClause(cr);
                 claBumpActivity(ca[cr]);
             }
+
+            // we _must_ increment the conflicts
+            conflicts++;
         }
 
         curr_restarts++;
@@ -1100,9 +1104,10 @@ void Solver::printStats() const
 {
     double cpu_time = cpuTime();
     double mem_used = memUsedPeak();
+    double conflictspsolver = distributer->broadcasted() + (float(conflicts) - distributer->broadcasted()) / distributer->size();
     printf("c restarts              : %" PRIu64 "\n", starts);
     printf("c conflicts             : %-12" PRIu64 "   (%.0f /sec)\n", conflicts, conflicts / cpu_time);
-    printf("c average conflicts     : %-12.2f   (%.0f /sec)\n", float(conflicts) / distributer->size(), (float(conflicts) / distributer->size()) / cpu_time);
+    printf("c avg conflicts / solver: %-12.2f   (%.0f /sec)\n", conflictspsolver, conflictspsolver / cpu_time);
     printf("c broadcast             : %-12" PRIu64 "   (%4.2f /sec)\n", distributer->broadcasted(), distributer->broadcasted() / cpu_time);
     printf("c received              : %-12" PRIu64 "   (%.2f /sec)\n", distributer->received(), distributer->received() / cpu_time);
     printf("c decisions             : %-12" PRIu64 "   (%4.2f %% random) (%.0f /sec)\n", decisions, (float)rnd_decisions * 100 / (float)decisions, decisions / cpu_time);
@@ -1111,6 +1116,12 @@ void Solver::printStats() const
     if (mem_used != 0)
         printf("c Memory used           : %.2f MB\n", mem_used);
     printf("c CPU time              : %g s\n", cpu_time);
+    printf("c stat avg_confl %.2f\n", conflictspsolver);
+    printf("c stat confl_used %ld\n", conflicts);
+    printf("c stat broadcast %ld\n", distributer->broadcasted());
+    printf("c stat received %ld\n", distributer->received());
+    printf("c stat proc %ld\n", distributer->size());
+    printf("c stat injected %ld\n", conflicts - distributer->broadcasted());
     printf("\n");
 }
 

@@ -55,8 +55,9 @@ static void SIGINT_exit(int) {
 
 int main(int argc, char** argv)
 {
+    int provided;
     // initialize our connection
-    MPI_Init(&argc, &argv);
+    MPI_Init_thread(&argc, &argv, MPI_THREAD_SERIALIZED, &provided);
 
     // initialize the ring, maybe we're the main program
     Ring ring;

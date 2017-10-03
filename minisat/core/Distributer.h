@@ -244,6 +244,9 @@ private:
         // we send to the next (we're done now)
         done();
 
+        // we have to finish the original one for ease of fucking use
+        if (_ring.tag() == 0) return;
+
         // otherwise we exit using a success (no printing -- VERY IMPORTANT!)
         exit(0);
     }

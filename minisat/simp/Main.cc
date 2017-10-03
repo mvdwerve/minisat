@@ -55,8 +55,11 @@ static void SIGINT_exit(int) {
 
 int main(int argc, char** argv)
 {
+    int provided;
     // initialize our connection
-    MPI_Init(&argc, &argv);
+    MPI_Init_thread(&argc, &argv, MPI_THREAD_SERIALIZED, &provided);
+
+    if (provided < MPI_THREAD_SERIALIZED) exit(1);
 
     // initialize the ring, maybe we're the main program
     Ring ring;
@@ -77,6 +80,7 @@ int main(int argc, char** argv)
         IntOption    cpu_lim("MAIN", "cpu-lim","Limit on CPU time allowed in seconds.\n", 0, IntRange(0, INT32_MAX));
         IntOption    mem_lim("MAIN", "mem-lim","Limit on memory usage in megabytes.\n", 0, IntRange(0, INT32_MAX));
         BoolOption   strictp("MAIN", "strict", "Validate DIMACS header during parsing.", false);
+        BoolOption   sol    ("MAIN", "solution", "Solution to STDOUT.", false);
 
         parseOptions(argc, argv, true);
         
@@ -170,7 +174,7 @@ int main(int argc, char** argv)
             } else
                 fprintf(res, "INDET\n");
             fclose(res);
-        } else {
+        } else if (sol) {
             if (ret == l_True) {
                 for (int i = 0; i < S.nVars(); i++) {
                     if (i % 10 == 0) printf("\nv ");
@@ -190,8 +194,8 @@ int main(int argc, char** argv)
         // any MPI should also be done now
         MPI_Finalize();
 
-        // no deconstruction on exit, is a lot faster
-        exit(ret == l_True ? 10 : ret == l_False ? 20 : 0);
+        // no deconstruction on exit, is a lot faster (and we always succeed)
+        exit(0);
     } catch (OutOfMemoryException&){
         printf("c ===============================================================================\n");
         printf("c INDETERMINATE\n");
