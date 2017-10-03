@@ -194,11 +194,12 @@ private:
                 _broadcast.pop();
             }
             
-            // check if it is done
-            is_done();
 
             // broadcast the obtained clause
             broadcast_clause(_ring.tag(), clause);
+            
+            // check if it is done
+            is_done();
         }
     }
 
@@ -250,9 +251,9 @@ private:
         // we have to finish the original one for ease of fucking use
         if (_ring.tag() == 0) return;
         
-        // quick finalize (hacky)
+        // quick finalize before we exit (hacky)
         MPI_Finalize();
-
+        
         // otherwise we exit using a success (no printing -- VERY IMPORTANT!)
         exit(0);
     }
@@ -384,8 +385,11 @@ public:
         // already done if not joinable
         if (!_thread.joinable()) return;
 
+        std::cout << "wait for join" << std::endl;
+
         // first off, we finish the thread
         _thread.join();
+        std::cout << "joined"  << std::endl;
     }
 
     // get a seed

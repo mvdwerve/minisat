@@ -654,7 +654,7 @@ void Solver::removeSatisfied(vec<CRef> &cs)
         else
         {
             // Trim clause:
-            assert(value(c[0]) == l_Undef && value(c[1]) == l_Undef);
+            //assert(value(c[0]) == l_Undef && value(c[1]) == l_Undef);
             for (int k = 2; k < c.size(); k++)
                 if (value(c[k]) == l_False)
                 {
