@@ -953,17 +953,15 @@ lbool Solver::solve_()
             // dereference it because the code uses dereferenced types
             LitClause &lcl = *learnt;
 
-            // this is the old minisat stuff, add the learnt clause
-            if (lcl.size() == 1) {
-                assert(false);
-                uncheckedEnqueue(lcl[0]);
-            } else {
-                CRef cr = ca.alloc(lcl, true);
-                learnts.push(cr);
-                attachClause(cr);
-                claBumpActivity(ca[cr]);
-            }
+            // skip one-clauses, it fucks shit up
+            if (lcl.size() < 2) continue;
 
+            // allocate 'n stuff
+            CRef cr = ca.alloc(lcl, true);
+            learnts.push(cr);
+            attachClause(cr);
+            claBumpActivity(ca[cr]);
+        
             // we _must_ increment the conflicts
             conflicts++;
         }

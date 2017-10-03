@@ -244,7 +244,7 @@ private:
         
         // if there is no message available, we skip for now
         if (!available) return;
-
+        
         // we send to the next (we're done now)
         done();
 
@@ -344,6 +344,9 @@ public:
 
     // signify that we're done
     void done() {
+        // we may've already done this 
+        if (_stop) return;
+
         // set an i
         int i = 0;
 
@@ -385,11 +388,8 @@ public:
         // already done if not joinable
         if (!_thread.joinable()) return;
 
-        std::cout << "wait for join" << std::endl;
-
         // first off, we finish the thread
         _thread.join();
-        std::cout << "joined"  << std::endl;
     }
 
     // get a seed

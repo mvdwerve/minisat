@@ -188,12 +188,8 @@ int main(int argc, char** argv)
         // the distributer is now done
         S.distributer->done();
     
-
-        std::cout << "before stop" << std::endl;
         // stop the distributer
         d.stop();
-
-        std::cout << "after stop" << std::endl;
 
         // any MPI should also be done now
         MPI_Finalize();
