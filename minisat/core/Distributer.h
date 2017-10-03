@@ -193,6 +193,9 @@ private:
                 // and pop it 
                 _broadcast.pop();
             }
+            
+            // check if it is done
+            is_done();
 
             // broadcast the obtained clause
             broadcast_clause(_ring.tag(), clause);
@@ -217,10 +220,10 @@ private:
         if (!available) return;
         
         // we always try to receive in blocks of 1024
-        int buffer[1024];
+        int buffer[8192];
         
         // first of all, we try to receive now 
-        MPI_Recv(buffer, sizeof(buffer), MPI_INT, _ring.prev(), 0, MPI_COMM_WORLD, &status);
+        MPI_Recv(buffer, 8192, MPI_INT, _ring.prev(), 0, MPI_COMM_WORLD, &status);
         MPI_Get_count(&status, MPI_INT, &received);
 
         // we write it to the buffer
@@ -246,6 +249,9 @@ private:
 
         // we have to finish the original one for ease of fucking use
         if (_ring.tag() == 0) return;
+        
+        // quick finalize (hacky)
+        MPI_Finalize();
 
         // otherwise we exit using a success (no printing -- VERY IMPORTANT!)
         exit(0);

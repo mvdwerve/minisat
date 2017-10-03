@@ -65,7 +65,7 @@ int main(int argc, char** argv)
     Ring ring;
         
     // if we're not a lucky process, we're going to close stdout
-    //if (ring.tag() != 0) fclose(stdout);
+    if (ring.tag() != 0) fclose(stdout);
 
     try {
         setUsageHelp("c USAGE: %s [options] <input-file> <result-output-file>\n\n  where input may be either in plain or gzipped DIMACS.\n");
