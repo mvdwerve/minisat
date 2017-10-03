@@ -267,7 +267,7 @@ private:
 
         // we're done if the source is our next-door neighbour
         if (source == _ring.next()) return;
-                
+        
         // we need to convert it to a native datatype
         std::vector<int32_t> native;
 
@@ -285,7 +285,7 @@ private:
 
         // we append the zero (end)
         native.push_back(0);
-
+        
         // and finally broadcast it
         MPI_Send(native.data(), native.size(), MPI_INT, _ring.next(), 0, MPI_COMM_WORLD);
     }
@@ -294,6 +294,9 @@ private:
      *  Method which obtains a clause from the buffer
      */
     virtual void receive(int32_t source, const std::shared_ptr<LitClause> &clause) {
+        // hack; we maybe sent it so dont add then
+        if (source == _ring.tag()) return;
+        
         // scope for mutexed code
         {
             // lock the receiving end
