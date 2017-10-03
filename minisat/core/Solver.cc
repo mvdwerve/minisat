@@ -1121,7 +1121,7 @@ void Solver::printStats() const
     printf("c stat broadcast %ld\n", distributer->broadcasted());
     printf("c stat received %ld\n", distributer->received());
     printf("c stat proc %ld\n", distributer->size());
-    printf("c stat injected %ld\n", conflicts - distributer->broadcasted());
+    printf("c stat injected %ld\n", distributer->received() > conflicts - distributer->broadcasted() ? conflicts - distributer->broadcasted() : distributer->received());
     printf("\n");
 }
 
